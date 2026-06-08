@@ -1,0 +1,9 @@
+[skill]
+name = "auto-coder"
+version = "0.3.0"
+author = "zeroclaw-labs"
+description = "Autonomous code generation agent. Reads context, writes code, runs tests."
+category = "coding"
+tags = ["Official", "Featured"]
+license = "MIT"
+permissions = ["file_read", "file_write", "shell_exec"]

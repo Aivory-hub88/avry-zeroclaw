@@ -1,0 +1,43 @@
+---
+name: n8n
+description: Build, validate, repair, and deploy n8n workflows via the Aivory Workflow Copilot webhook.
+metadata: { "openclaw": { "emoji": "⚙️" } }
+---
+
+# n8n Workflow Copilot
+
+## Endpoint
+POST http://localhost:5678/webhook/aivory-workflow-copilot
+
+## Request format
+\`\`\`json
+{
+  "action": "<action>",
+  "payload": { ... },
+  "context": { "org_id": "...", "user_id": "..." },
+  "meta": { "source": "zeroclaw", "trace_id": "..." }
+}
+\`\`\`
+
+## State machine
+CLARIFYING → SEARCHING → GENERATING → VALIDATING → [REPAIRING max 3x] → DEPLOYING
+Never skip stages. Never deploy before validate passes.
+
+## Actions
+
+| Action | Required payload fields | When |
+|--------|------------------------|------|
+| search_nodes | query | Before generate — always |
+| get_schema | node_name | For every node before writing params |
+| search_templates | query | For structural inspiration |
+| generate | workflow_json | After schema lookup |
+| validate | (none) | After generate |
+| repair | failing_node, repair_count, last_validation_error | When validate fails |
+| deploy | (none) | Only after validate passes |
+
+## Hard rules
+1. Always search_nodes before generate
+2. Always get_schema for every node — never invent parameters
+3. Always validate before deploy
+4. Repair max 3 iterations — escalate to user if still failing
+5. Never deploy if validate is still failing

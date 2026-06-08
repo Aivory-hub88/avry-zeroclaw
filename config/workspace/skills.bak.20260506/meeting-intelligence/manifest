@@ -1,0 +1,4 @@
+name = "meeting-intelligence"
+version = "1.0.0"
+description = "Transcript extraction, decisions, action items, owners, deadlines."
+agentic = false

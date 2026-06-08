@@ -1,0 +1,4 @@
+name = "email-handler"
+version = "1.0.0"
+description = "Inbox orchestrator and intent router. Entry point for all inbound requests."
+agentic = true

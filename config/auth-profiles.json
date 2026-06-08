@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "updated_at": "2026-01-01T00:00:00.000000000+00:00",
+  "active_profiles": {
+    "openrouter": "openrouter:default"
+  },
+  "profiles": {
+    "openrouter:default": {
+      "provider": "openrouter",
+      "profile_name": "default",
+      "kind": "token",
+      "account_id": null,
+      "workspace_id": null,
+      "access_token": null,
+      "refresh_token": null,
+      "id_token": null,
+      "token": "${OPENROUTER_API_KEY}",
+      "expires_at": null,
+      "token_type": null,
+      "scope": null,
+      "created_at": "2026-01-01T00:00:00.000000000+00:00",
+      "updated_at": "2026-01-01T00:00:00.000000000+00:00",
+      "metadata": {
+        "auth_kind": "api-key"
+      }
+    }
+  }
+}

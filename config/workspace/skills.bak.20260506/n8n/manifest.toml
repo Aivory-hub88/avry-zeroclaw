@@ -1,0 +1,18 @@
+[skill]
+name = "n8n"
+version = "0.1.0"
+author = "aivory"
+description = "Aivory n8n Workflow Copilot. Reasoning, spec generation, repair suggestions, optimization, and setup-report explanation via MCP bridge."
+category = "workflow"
+tags = ["n8n", "workflow", "automation", "aivory", "builder", "copilot"]
+license = "MIT"
+permissions = ["network", "file_read"]
+
+[routing]
+hint = "workflow_copilot"
+
+[routing.overrides]
+premium = "workflow_copilot_premium"
+technical = "workflow_copilot_technical"
+reasoning = "workflow_copilot_reasoning"
+fast = "workflow_copilot_fast"

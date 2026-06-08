@@ -1,0 +1,71 @@
+version: '3.8'
+
+services:
+  # ─── ZeroClaw AI Gateway (Rust binary daemon) ──────────────────────────
+  # Internal-only — not exposed to host. VPS Bridge proxies all traffic.
+  zeroclaw-daemon:
+    build:
+      context: .
+      dockerfile: Dockerfile.zeroclaw
+    container_name: avry-zeroclaw-daemon
+    environment:
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+    volumes:
+      - ./config:/home/zeroclaw/.zeroclaw
+      - ./runtime:/home/zeroclaw/workspace
+      - ./skills:/home/zeroclaw/skills
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:3010/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - aivory-network
+
+  # ─── VPS Bridge — Public API Gateway (:8090) ───────────────────────────
+  # This is the entry point for all frontend services (console, dashboards).
+  # Maps to avry-zeroclaw port 8090 per platform architecture.
+  vps-bridge:
+    build:
+      context: ./vps-bridge
+      dockerfile: Dockerfile
+    container_name: avry-zeroclaw
+    ports:
+      - "8090:8090"
+    environment:
+      - PORT=8090
+      - ZEROCLAW_URL=http://zeroclaw-daemon:3010
+      - ZEROCLAW_BASE_URL=http://zeroclaw-daemon:3010
+      - N8N_BASE_URL=http://avry-n8n:5678
+      - N8N_AS_CODE_URL=http://avry-n8n-as-code:3500
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - INTERNAL_TOKEN=${INTERNAL_TOKEN:-aivory-internal-2026}
+      - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:9000,http://localhost:9001,http://localhost:9002,http://localhost:8086}
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+      - N8N_API_KEY_1=${N8N_API_KEY}
+      - N8N_API_KEY_2=${N8N_API_KEY}
+      - N8N_API_KEY_3=${N8N_API_KEY}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
+      - DIAGNOSTIC_MODEL=${DIAGNOSTIC_MODEL:-qwen/qwen3-235b-a22b}
+      - AUTH_BACKEND_URL=http://avry-backend:8081
+    depends_on:
+      zeroclaw-daemon:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8090/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    networks:
+      - aivory-network
+
+networks:
+  aivory-network:
+    name: aivory-network
+    external: true

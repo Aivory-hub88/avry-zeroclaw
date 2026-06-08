@@ -1,46 +1,94 @@
 # avry-zeroclaw
 
-AI Agent deployment service for the Aivory platform — autonomous agents on Telegram, Slack, and WhatsApp.
+AI Agent Gateway for the Aivory platform — powered by ZeroClaw runtime with VPS Bridge proxy.
 
-## Tech Stack
+## Architecture
 
-- Python 3.11+
-- FastAPI + Uvicorn
-- Multi-channel messaging (Telegram, Slack, WhatsApp)
-- Docker
+```
+Dashboard (Next.js)
+    │
+    │  POST /console/stream, /aria/stream, /workflows/generate
+    │
+    ▼
+VPS Bridge (:3003) ─── Node.js thin proxy
+    │  • CORS handling
+    │  • Auth injection
+    │  • SSE stream normalization
+    │  • Direct diagnostic endpoints (OpenRouter fallback)
+    │
+    ▼
+ZeroClaw (:3010) ─── Rust AI daemon
+    │  • Multi-agent routing (AGENTS.md)
+    │  • Sub-agent orchestration (workflow_brain, diagnostic_brain, etc.)
+    │  • Skills-based structured output
+    │  • MCP connection to n8n-MCP
+    │  • Memory (SQLite), sessions, cron, cost tracking
+    │  • OpenRouter LLM calls (qwen/qwen3-235b-a22b)
+    │
+    ▼
+n8n-MCP (:3020) → n8n (:5678) for workflow operations
+```
+
+## Services
+
+| Service | Port | Description |
+|---------|------|-------------|
+| ZeroClaw | 3010 | AI agent runtime (Rust binary) |
+| VPS Bridge | 3003 | Thin proxy between frontend and ZeroClaw |
 
 ## Directory Structure
 
 ```
 avry-zeroclaw/
-├── app/            # Application source code
-├── main.py         # Entry point
-├── Dockerfile
-├── docker-compose.yml
-└── requirements.txt
+├── bin/zeroclaw              # ZeroClaw binary (Linux x86_64)
+├── config/                   # ZeroClaw configuration (~/.zeroclaw)
+│   ├── config.toml           # Main config (providers, agents, skills, etc.)
+│   ├── identity.md           # AI persona definition
+│   ├── skills/               # Installed skills (workflow_*, etc.)
+│   └── workspace/            # Workspace data (SOUL.md, AGENTS.md, etc.)
+├── runtime/                  # Runtime state (brain.db, sessions, etc.)
+├── skills/                   # Additional skill repositories
+├── vps-bridge/               # VPS Bridge source code
+│   ├── server.js             # Main proxy server
+│   ├── endpoints.js          # API endpoint handlers
+│   ├── lib/supabase.js       # Supabase client
+│   └── Dockerfile
+├── Dockerfile.zeroclaw       # ZeroClaw container
+├── docker-compose.yml        # All services
+└── .env.example              # Environment template
 ```
 
 ## Run Locally
 
 ```bash
-pip install -r requirements.txt
-cp .env.example .env
-uvicorn main:app --host 0.0.0.0 --port 8090 --reload
-```
+# Create shared network (first time only)
+docker network create aivory-network
 
-## Docker
-
-```bash
+# Start services
 docker compose up --build
 ```
 
-## VPS Deployment
+## Key Endpoints (via VPS Bridge :3003)
 
-```bash
-docker compose -f docker-compose.yml up -d --build
-```
+| Method | Path | Purpose |
+|--------|------|---------|
+| POST | `/console/stream` | AI console chat (SSE) |
+| POST | `/aria/stream` | Floating AIRA assistant (SSE) |
+| POST | `/workflows/generate` | Workflow spec generation (JSON) |
+| POST | `/workflows/repair` | Workflow repair (JSON) |
+| POST | `/diagnostics/run` | Deep diagnostic (OpenRouter) |
+| POST | `/diagnostic/run` | Free diagnostic (OpenRouter) |
+| GET | `/health` | Health check |
+| GET | `/api/entitlements/:userId` | User entitlements |
 
-Ensure `.env` is configured on the server with production credentials.
+## Configuration
+
+ZeroClaw config lives in `config/config.toml`. Key sections:
+- `[providers.models.openrouter]` — LLM provider config
+- `[agents.*]` — Sub-agent definitions (workflow_brain, diagnostic_brain, etc.)
+- `[mcp]` — n8n-MCP connection
+- `[memory]` — SQLite memory backend
+- `[gateway]` — HTTP gateway settings
 
 ## Part of Aivory
 

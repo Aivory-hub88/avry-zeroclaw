@@ -1,0 +1,4 @@
+name = "customer-service"
+version = "1.0.0"
+description = "Support, issue triage, FAQ resolution, and escalation."
+agentic = true

@@ -1,0 +1,4 @@
+name = "invoice-finance"
+version = "1.0.0"
+description = "PO validation, anomaly detection, and approval routing."
+agentic = true

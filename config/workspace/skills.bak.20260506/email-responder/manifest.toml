@@ -1,0 +1,9 @@
+[skill]
+name = "email-responder"
+version = "0.1.1"
+author = "community"
+description = "Draft and send email replies with context-aware tone matching."
+category = "chat"
+tags = ["Community"]
+license = "MIT"
+permissions = []

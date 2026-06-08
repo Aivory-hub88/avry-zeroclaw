@@ -1,0 +1,4 @@
+name = "leads-qualifier"
+version = "1.0.0"
+description = "BANT-based opportunity scoring and lead qualification."
+agentic = true

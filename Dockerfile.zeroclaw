@@ -1,0 +1,29 @@
+FROM ubuntu:24.04
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    curl \
+    sqlite3 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create zeroclaw user
+RUN useradd -m -s /bin/bash zeroclaw
+
+# Copy the binary
+COPY bin/zeroclaw /usr/local/bin/zeroclaw
+RUN chmod +x /usr/local/bin/zeroclaw
+
+# Create directories
+RUN mkdir -p /home/zeroclaw/.zeroclaw \
+    /home/zeroclaw/workspace \
+    /home/zeroclaw/skills \
+    && chown -R zeroclaw:zeroclaw /home/zeroclaw
+
+USER zeroclaw
+WORKDIR /home/zeroclaw/.zeroclaw
+
+EXPOSE 3010
+
+# Run ZeroClaw daemon
+CMD ["zeroclaw", "daemon", "--host", "0.0.0.0", "--port", "3010"]
