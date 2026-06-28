@@ -1454,6 +1454,8 @@ app.post('/stripe/webhook', express.raw({ type: 'application/json' }), async (re
 // request before the catch-all proxy and calls OpenRouter directly.
 // ============================================================================
 
+const { diagnosticQueue } = require('./lib/diagnosticQueue');
+
 const DIAGNOSTIC_SYSTEM_PROMPT = `You are an AI readiness diagnostic expert. Analyze the provided business diagnostic data and return a structured JSON assessment.
 
 You MUST respond with ONLY a valid JSON object — no markdown, no code blocks, no commentary.
@@ -1585,6 +1587,41 @@ app.post('/diagnostics/run', async (req, res) => {
 // Authentication requests handled at the top of the middleware stack
 
 // All other requests - generic proxy
+
+// ── Async deep-diagnostic (BullMQ): enqueue + poll, avoids CF ~100s timeout ──
+app.post('/diagnostics/run/async', async (req, res) => {
+  try {
+    const { mode, phases, diagnostic_payload } = req.body;
+    if (mode !== 'deep') return res.status(422).json({ error: true, message: 'Invalid mode: expected "deep"' });
+    const payload = phases || diagnostic_payload;
+    if (!payload) return res.status(400).json({ error: true, message: 'Missing required field: phases' });
+    const job = await diagnosticQueue.add('deep', { payload }, {
+      attempts: 1,
+      removeOnComplete: { age: 3600 },
+      removeOnFail: { age: 3600 },
+    });
+    console.log('[diagnostics/run/async] enqueued job', job.id);
+    return res.status(202).json({ job_id: job.id, status: 'queued' });
+  } catch (err) {
+    console.error('[diagnostics/run/async] enqueue error:', err.message);
+    return res.status(500).json({ error: true, message: 'Could not queue diagnostic. Please try again.' });
+  }
+});
+
+app.get('/diagnostics/result/:jobId', async (req, res) => {
+  try {
+    const job = await diagnosticQueue.getJob(req.params.jobId);
+    if (!job) return res.status(404).json({ error: true, message: 'Job not found' });
+    const state = await job.getState();
+    if (state === 'completed') return res.json({ status: 'completed', result: job.returnvalue });
+    if (state === 'failed') return res.status(502).json({ status: 'failed', error: true, message: job.failedReason || 'Diagnostic failed. Please try again.' });
+    return res.json({ status: state }); // waiting | active | delayed -> keep polling
+  } catch (err) {
+    console.error('[diagnostics/result] error:', err.message);
+    return res.status(500).json({ error: true, message: 'Internal server error' });
+  }
+});
+
 app.all('*', proxyRequest);
 
 // ============================================================================
