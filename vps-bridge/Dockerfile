@@ -1,6 +1,6 @@
 FROM node:18-alpine
 
-# Install dependencies
+# Install PicoClaw dependencies
 RUN apk add --no-cache curl bash
 
 # Create app directory
@@ -16,14 +16,14 @@ RUN npm ci --only=production
 COPY . .
 
 # Create logs directory
-RUN mkdir -p /app/logs && chown -R node:node /app/logs
+RUN mkdir -p /app/logs
 
-# Expose port (uses PORT env, defaults to 8090)
-EXPOSE 8090
+# Expose port
+EXPOSE 3003
 
 # Health check
-HEALTHCHECK --interval=15s --timeout=5s --start-period=5s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:8090/health || exit 1
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:3003/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
 
 # Run as non-root user
 USER node
