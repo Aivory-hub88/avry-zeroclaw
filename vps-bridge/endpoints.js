@@ -1172,6 +1172,12 @@ async function handleConsoleStream(req, res, next) {
     const { callZeroclawWithSkill, stripToolCalls } = require('./zeroclawClient');
     const userCtx = await getUserContext(session_id).catch(() => ({}));
 
+    // JSON format instruction — scoped ONLY to console chat stream.
+    // DO NOT add this to CONSOLE_SYSTEM_PROMPT or any other endpoint handler.
+    const JSON_FORMAT_INSTRUCTION = '[RESPONSE FORMAT] Always respond in valid JSON: {"reply": "<your response>", "suggestions": ["<action 1>", "<action 2>", "<action 3>"]}. The suggestions array must contain 3-4 short contextual follow-up actions. If you need clarification, add "clarification": true to the JSON. [END FORMAT]\n\n';
+
+    const augmentedMessage = JSON_FORMAT_INSTRUCTION + lastUserMessage;
+
     const enrichedContext = {
       session_id,
       organization_id,
@@ -1187,7 +1193,7 @@ async function handleConsoleStream(req, res, next) {
     };
 
     const result = await callZeroclawWithSkill({
-      message: lastUserMessage,
+      message: augmentedMessage,
       context: enrichedContext,
     });
 

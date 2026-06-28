@@ -1,74 +1,61 @@
-/**
- * VPS Bridge - Supabase Database Client
- * Uses @supabase/supabase-js for user entitlements and Stripe audit trail
- */
+// lib/supabase.js — Supabase RETIRED. Backed by the VPS PostgreSQL (avry-postgres).
+// Same module surface so server.js needs no changes.
+const { Pool } = require('pg');
+try { require('dotenv').config(); } catch (e) {}
 
-const { createClient } = require("@supabase/supabase-js");
-const WebSocket = require("ws");
-
-// Load env (server.js already loads dotenv, but safe to try)
-try { require("dotenv").config(); } catch (e) {}
-
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
-
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn("[supabase] Missing SUPABASE_URL or SUPABASE_ANON_KEY — DB features disabled");
-}
-
-const supabase = supabaseUrl && supabaseAnonKey
-  ? createClient(supabaseUrl, supabaseAnonKey, {
-      auth: { persistSession: false, autoRefreshToken: false },
-      db: { schema: "public" },
-      realtime: { transport: WebSocket },
-    })
-  : null;
-
-// ── ENTITLEMENTS ──────────────────────────────────────────────────────────────
+const pool = new Pool({
+  host: process.env.PGHOST || '127.0.0.1',
+  port: Number(process.env.PGPORT) || 5432,
+  database: process.env.PGDATABASE || 'aivory',
+  user: process.env.PGUSER || 'aivory',
+  password: process.env.PGPASSWORD || 'AivoryApp2026!@#123',
+  max: 5,
+  idleTimeoutMillis: 30000,
+});
+pool.on('error', (e) => console.error('[pg] pool error:', e.message));
 
 async function getUserEntitlements(userId) {
-  if (!supabase) return { tier: "free", features: {} };
-  const { data, error } = await supabase
-    .from("user_tiers")
-    .select("*")
-    .eq("user_id", userId)
-    .single();
-  if (error) {
-    if (error.code === "PGRST116") return { tier: "free", features: {} };
-    throw error;
-  }
-  return data;
+  try {
+    const { rows } = await pool.query('SELECT * FROM user_tiers WHERE user_id = $1', [userId]);
+    return rows[0] || null;
+  } catch (e) { console.error('[pg] getUserEntitlements:', e.message); return null; }
 }
 
 async function upsertEntitlement({ userId, tier, features, expiresAt }) {
-  if (!supabase) throw new Error("Supabase not configured");
-  const { data, error } = await supabase
-    .from("user_tiers")
-    .upsert(
-      { user_id: userId, tier: tier || "free", features: features || {}, expires_at: expiresAt || null },
-      { onConflict: "user_id" }
-    )
-    .select()
-    .single();
-  if (error) throw error;
-  return data;
+  const { rows } = await pool.query(
+    `INSERT INTO user_tiers (user_id, tier, features, expires_at, updated_at)
+     VALUES ($1, $2, $3::jsonb, $4, now())
+     ON CONFLICT (user_id) DO UPDATE SET tier = EXCLUDED.tier, features = EXCLUDED.features,
+       expires_at = EXCLUDED.expires_at, updated_at = now()
+     RETURNING *`,
+    [userId, tier || 'free', JSON.stringify(features || []), expiresAt || null]
+  );
+  return rows[0];
 }
-
-// ── STRIPE EVENTS ─────────────────────────────────────────────────────────────
 
 async function recordStripeEvent({ eventId, eventType, userId, sessionId, amount, currency }) {
-  if (!supabase) return;
-  const { error } = await supabase.from("stripe_events").insert({
-    event_id: eventId,
-    event_type: eventType,
-    user_id: userId,
-    session_id: sessionId,
-    amount: amount || 0,
-    currency: currency || "usd",
-  });
-  if (error) console.error("[supabase recordStripeEvent]", error.message);
+  await pool.query(
+    `INSERT INTO stripe_events (event_id, event_type, user_id, session_id, amount, currency)
+     VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (event_id) DO NOTHING`,
+    [eventId, eventType, userId, sessionId, amount, currency]
+  );
 }
 
-// ── EXPORTS ───────────────────────────────────────────────────────────────────
+// Back-compat shim for legacy supabaseDb.supabase.from(table).insert(row) (diagnostics persistence).
+const supabase = {
+  from(table) {
+    return {
+      async insert(row) {
+        try {
+          const cols = Object.keys(row);
+          const ph = cols.map((_, i) => `$${i + 1}`).join(', ');
+          const vals = cols.map((c) => { const v = row[c]; return v !== null && typeof v === 'object' ? JSON.stringify(v) : v; });
+          await pool.query(`INSERT INTO "${table}" (${cols.map((c) => `"${c}"`).join(', ')}) VALUES (${ph}) ON CONFLICT DO NOTHING`, vals);
+          return { error: null };
+        } catch (error) { return { error }; }
+      },
+    };
+  },
+};
 
-module.exports = { supabase, getUserEntitlements, upsertEntitlement, recordStripeEvent };
+module.exports = { supabase, getUserEntitlements, upsertEntitlement, recordStripeEvent, pool };
